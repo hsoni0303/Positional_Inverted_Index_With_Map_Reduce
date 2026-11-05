@@ -1,33 +1,27 @@
-#!/usr/bin/env python
-from sys import stdin
-positional_index = {}
-for line in stdin:
-    line = line.strip()
-    term, doc_id, pos = line.split('\t')
-    pos = int(pos)
-    if term in positional_index.keys():
-        postings = positional_index[term]
-        if doc_id in postings.keys():
-            postings[doc_id].append(pos)
-        else:
-            postings[doc_id] = []
-            postings[doc_id].append(pos)
-        positional_index[term] = postings
-    else:
-        postings = dict()
-        postings[doc_id] = []
-        postings[doc_id].append(pos)
-        positional_index[term] = postings
+#!/usr/bin/env python3
+"""Hadoop-streaming reducer: group sorted mapper output into positional postings.
 
-for term in positional_index.keys():
-    postings = ''
-    positional_postings = positional_index[term]
-    for doc_id in positional_postings.keys():
-        temp = sorted(positional_postings[doc_id])
-        positional_index[term][doc_id] = temp
-        for i in positional_index[term][doc_id]:
-            postings = postings + str(i) + ';'
+Input (sorted by term):  term \\t doc_id \\t position
+Output:                  term \\t {"doc_id": [pos, ...], ...}   (JSON, sorted)
 
-        positional_index[term][doc_id] = postings
+Hadoop guarantees all lines for a term arrive contiguously, so only one
+term's postings are held in memory at a time.
+"""
 
-    print("%s\t%s" % (term, positional_index[term]))
+import json
+import sys
+from itertools import groupby
+
+
+def reduce_sorted(lines):
+    rows = (line.rstrip("\n").split("\t") for line in lines if line.strip())
+    for term, group in groupby(rows, key=lambda r: r[0]):
+        postings = {}
+        for _, doc, pos in group:
+            postings.setdefault(doc, []).append(int(pos))
+        yield term, {doc: sorted(p) for doc, p in sorted(postings.items())}
+
+
+if __name__ == "__main__":
+    for term, postings in reduce_sorted(sys.stdin):
+        print(f"{term}\t{json.dumps(postings, separators=(',', ':'))}")

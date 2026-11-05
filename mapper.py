@@ -1,50 +1,29 @@
 #!/usr/bin/env python3
-from sys import stdin
+"""Hadoop-streaming mapper: emit `term \\t doc_id \\t position` for every term."""
+
 import os
-import re
-#from glob import glob
-from nltk import download as nltk_download
-# nltk_download('stopwords')
-# nltk_download('wordnet')
-# nltk_download('omw-1.4')
-# nltk_download('punkt')
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
-lemmatizer = WordNetLemmatizer()
+import sys
+
+from text import normalize
 
 
-def pre_preocessing(line):
-    token_list = word_tokenize(line)
-    # remove puncuation and special characters
-    # removing strings containing . and -
-    token_list = [token for token in token_list if '.' not in token]
-    token_list = [token for token in token_list if '-' not in token]
-    token_list = [re.sub('[^A-Za-z0-9]+', '', token) for token in token_list]
-    # if string contains any digit then its removed
-    token_list = [token for token in token_list if not any(
-        map(str.isdigit, token))]
-    # all empty strings are removed
-    token_list = [str for str in token_list if str]
-    # all terms converted to lower characters
-    token_list = [token.lower() for token in token_list]
-    # stop words removal
-    stop_words = set(stopwords.words('english'))
-    token_list = [token for token in token_list if not token in stop_words]
-
-    return token_list
+def map_document(doc_id, lines, start=0):
+    """Yield (term, doc_id, position); positions continue across lines."""
+    pos = start
+    for line in lines:
+        for term in normalize(line):
+            yield term, doc_id, pos
+            pos += 1
 
 
-count = dict()
+def doc_id_from_path(path):
+    """'.../20_newsgroups/sci.space/59873' -> 'sci.space/59873'."""
+    parent, name = os.path.split(path)
+    return f"{os.path.basename(parent)}/{name}"
 
-for line in stdin:
-    doc_id = os.environ['map_input_file']
-    doc_id = os.path.basename(doc_id)
-    if doc_id not in count.keys():
-        count[doc_id] = 0
-    line = line.strip()
-    token_list = pre_preocessing(line)
-    for token in token_list:
-        count[doc_id] = count[doc_id] + 1
-        term = lemmatizer.lemmatize(token)
-        print("%s\t%s\t%s" % (term, doc_id, count[doc_id]))
+
+if __name__ == "__main__":
+    # Hadoop exposes the current input file via an env var (name differs by version).
+    path = os.environ.get("mapreduce_map_input_file") or os.environ.get("map_input_file", "stdin")
+    for term, doc, pos in map_document(doc_id_from_path(path), sys.stdin):
+        print(f"{term}\t{doc}\t{pos}")
