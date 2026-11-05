@@ -90,8 +90,8 @@ through **the same normalization as the index**, so `Shuttles` finds
 ## Quickstart
 
 ```bash
-git clone git@github.com:hsoni0303/Positional-Inverted-Index-With-Map-Reduce.git
-cd Positional-Inverted-Index-With-Map-Reduce
+git clone git@github.com:hsoni0303/Positional_Inverted_Index_With_Map_Reduce.git
+cd Positional_Inverted_Index_With_Map_Reduce
 pip install -r requirements.txt      # NLTK; stopwords and WordNet download on first run
 
 python index.py 20_newsgroups         # build index.tsv
